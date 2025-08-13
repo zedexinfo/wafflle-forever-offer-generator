@@ -12,6 +12,10 @@ interface Offer {
   description: string;
   type: 'win' | 'lose';
   emoji: string;
+  generatedAt?: number;
+  generatedAtFormatted?: string;
+  contact?: string;
+  uniqueId?: string;
 }
 
 export default function OfferGenerator() {
@@ -687,6 +691,21 @@ export default function OfferGenerator() {
               >
                 {offer ? (
                   <>
+                    {/* Timestamp Banner */}
+                    <motion.div
+                      initial={{ opacity: 0, y: -20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 }}
+                      className="bg-gradient-to-r from-amber-100 to-yellow-100 p-3 rounded-xl border border-amber-200 mb-4"
+                    >
+                      <div className="flex items-center justify-center gap-2 text-sm text-amber-700">
+                        <Clock className="w-4 h-4" />
+                        <span className="font-semibold">
+                          Generated: {offer.generatedAtFormatted || new Date().toLocaleString()}
+                        </span>
+                      </div>
+                    </motion.div>
+
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
@@ -710,16 +729,43 @@ export default function OfferGenerator() {
                       }`}>
                         {offer.title}
                       </h2>
-                      <p className="text-gray-600 text-lg mb-6">
+                      <p className="text-gray-600 text-lg mb-4">
                         {offer.description}
                       </p>
+
+                      {/* Anti-abuse information */}
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4 space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">Generated for:</span>
+                          <span className="font-semibold text-gray-700">{offer.contact || contact}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">Generated at:</span>
+                          <span className="font-semibold text-gray-700">
+                            {offer.generatedAtFormatted || new Date().toLocaleString()}
+                          </span>
+                        </div>
+                        {offer.uniqueId && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-500">Verification ID:</span>
+                            <span className="font-mono text-xs text-gray-600">
+                              {offer.uniqueId.slice(-12)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
 
                       {offer.type === 'win' ? (
                         <div className="bg-green-50 p-4 rounded-xl border-2 border-green-200">
                           <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                          <p className="text-green-700 font-semibold">
-                            Congratulations! Show this to our staff to claim your offer!
+                          <p className="text-green-700 font-semibold mb-2">
+                            Congratulations! Show this screen to our staff to claim your offer!
                           </p>
+                          <div className="text-xs text-green-600 space-y-1">
+                            <p>⚠️ This offer expires at the end of today</p>
+                            <p>🛡️ Staff will verify the generation details shown above</p>
+                            <p>📱 Screenshots without verification may not be honored</p>
+                          </div>
                         </div>
                       ) : (
                         <div className="bg-orange-50 p-4 rounded-xl border-2 border-orange-200">
