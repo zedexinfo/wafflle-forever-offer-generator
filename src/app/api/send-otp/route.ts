@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@/lib/kv';
+import { sendOTPEmail, sendOTPSMS } from '@/lib/email';
 
 // Simple OTP generator
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Simulate email sending (you can replace this with actual email service)
-async function sendOTP(contact: string, otp: string, method: 'email' | 'phone') {
-  console.log(`Sending OTP ${otp} to ${contact} via ${method}`);
-  // In a real app, you would integrate with an email service like SendGrid, Resend, etc.
-  // For now, we'll just log it to console for development
-  return true;
+// Send OTP via email or SMS
+async function sendOTP(contact: string, otp: string, method: 'email' | 'phone'): Promise<boolean> {
+  try {
+    if (method === 'email') {
+      return await sendOTPEmail(contact, otp);
+    } else if (method === 'phone') {
+      return await sendOTPSMS(contact, otp);
+    }
+    return false;
+  } catch (error) {
+    console.error('Error sending OTP:', error);
+    return false;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -76,7 +84,14 @@ export async function POST(request: NextRequest) {
     await kv.setex(otpKey, 600, otp); // 10 minutes expiry
     
     // Send OTP
-    await sendOTP(contact, otp, method);
+    const emailSent = await sendOTP(contact, otp, method);
+    
+    if (!emailSent) {
+      return NextResponse.json(
+        { error: 'Failed to send OTP. Please try again.' },
+        { status: 500 }
+      );
+    }
     
     return NextResponse.json({ 
       success: true, 
