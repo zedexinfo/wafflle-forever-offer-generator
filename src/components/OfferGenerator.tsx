@@ -48,6 +48,10 @@ export default function OfferGenerator() {
           console.log('OTP:', data.otp);
         }
       } else {
+        if (data.cooldownActive && data.hoursLeft) {
+          setCooldownHours(data.hoursLeft);
+          setStep('result');
+        }
         setError(data.error || 'Failed to send OTP');
       }
     } catch {

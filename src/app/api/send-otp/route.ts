@@ -44,6 +44,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check if user has already generated an offer today (cooldown check)
+    const cooldownKey = `cooldown:${contact}`;
+    const lastOfferTime = await kv.get(cooldownKey);
+    
+    if (lastOfferTime) {
+      const timeDiff = Date.now() - Number(lastOfferTime);
+      const oneDayInMs = 24 * 60 * 60 * 1000;
+      
+      if (timeDiff < oneDayInMs) {
+        const remainingTime = oneDayInMs - timeDiff;
+        const hoursLeft = Math.ceil(remainingTime / (60 * 60 * 1000));
+        
+        return NextResponse.json(
+          { 
+            error: 'Cooldown active',
+            message: `You have already claimed your offer today. Please wait ${hoursLeft} more hours before trying again`,
+            hoursLeft,
+            cooldownActive: true
+          },
+          { status: 429 }
+        );
+      }
+    }
+
     // Generate OTP
     const otp = generateOTP();
     
