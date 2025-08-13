@@ -1,0 +1,8 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/api/generate-offer/route": "/api/generate-offer",
+  "/api/send-otp/route": "/api/send-otp",
+  "/api/verify-otp/route": "/api/verify-otp",
+  "/favicon.ico/route": "/favicon.ico",
+  "/page": "/"
+}
