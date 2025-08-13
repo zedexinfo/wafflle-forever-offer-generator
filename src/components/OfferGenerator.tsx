@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Gift, Mail, Phone, Loader2, CheckCircle, XCircle, Clock, Crown } from 'lucide-react';
 import WaffleLogo from './WaffleLogo';
+import { getOTPConfig, isOTPConfigValid } from '@/lib/otp-config';
 
 interface Offer {
   id: number;
@@ -11,6 +12,10 @@ interface Offer {
   description: string;
   type: 'win' | 'lose';
   emoji: string;
+  generatedAt?: number;
+  generatedAtFormatted?: string;
+  contact?: string;
+  uniqueId?: string;
 }
 
 export default function OfferGenerator() {
@@ -23,6 +28,25 @@ export default function OfferGenerator() {
   const [offer, setOffer] = useState<Offer | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [cooldownHours, setCooldownHours] = useState(0);
+
+  // Get OTP configuration from environment
+  const otpConfig = getOTPConfig();
+
+  // Set default contact method based on configuration
+  useEffect(() => {
+    if (isOTPConfigValid(otpConfig)) {
+      // Set the default method based on what's enabled and the preference
+      if (otpConfig.enableEmail && otpConfig.defaultMethod === 'email') {
+        setContactMethod('email');
+      } else if (otpConfig.enablePhone && otpConfig.defaultMethod === 'phone') {
+        setContactMethod('phone');
+      } else if (otpConfig.enableEmail) {
+        setContactMethod('email');
+      } else if (otpConfig.enablePhone) {
+        setContactMethod('phone');
+      }
+    }
+  }, [otpConfig]);
 
   const sendOTP = async () => {
     if (!contact.trim()) {
@@ -140,44 +164,50 @@ export default function OfferGenerator() {
   };
 
   return (
-    <div className="min-h-screen royal-bg flex items-center justify-center p-4">
+    <div className="min-h-screen royal-bg flex items-center justify-center p-4 py-8 md:py-4">
       {/* Floating Decorative Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {[...Array(6)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute text-4xl opacity-20"
-            initial={{
-              x: typeof window !== 'undefined' ? Math.random() * window.innerWidth : Math.random() * 800,
-              y: typeof window !== 'undefined' ? Math.random() * window.innerHeight : Math.random() * 600,
-            }}
-            animate={{
-              y: [0, -20, 0],
-              rotate: [0, 360],
-              opacity: [0.1, 0.3, 0.1],
-            }}
-            transition={{
-              duration: 5 + i,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: i * 0.8,
-            }}
-          >
-            {i % 3 === 0 ? '👑' : i % 3 === 1 ? '✨' : '🧇'}
-          </motion.div>
-        ))}
+        {[...Array(8)].map((_, i) => {
+          const foodEmojis = ['👑', '✨', '🧇', '🥞', '🥤', '☕', '🍯', '🧈'];
+          const emoji = foodEmojis[i % foodEmojis.length];
+          
+          return (
+            <motion.div
+              key={i}
+              className="absolute text-3xl md:text-4xl opacity-20"
+              initial={{
+                x: typeof window !== 'undefined' ? Math.random() * window.innerWidth : Math.random() * 800,
+                y: typeof window !== 'undefined' ? Math.random() * window.innerHeight : Math.random() * 600,
+              }}
+              animate={{
+                y: [0, -30, 0],
+                rotate: [0, 360],
+                opacity: [0.1, 0.3, 0.1],
+                scale: [0.8, 1.2, 0.8],
+              }}
+              transition={{
+                duration: 6 + i * 0.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: i * 1.2,
+              }}
+            >
+              {emoji}
+            </motion.div>
+          );
+        })}
       </div>
 
-      <div className="w-full max-w-md mx-auto relative z-10">
+      <div className="w-full max-w-md mx-auto relative z-10 flex flex-col min-h-0">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -50 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
+          className="text-center mb-6 md:mb-4"
         >
-          <WaffleLogo size="large" />
+          <WaffleLogo size="medium" className="md:scale-75" />
           <motion.p 
-            className="text-amber-700 text-lg mt-4 font-medium"
+            className="text-amber-700 text-lg mt-2 md:mt-1 font-medium"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8 }}
@@ -236,33 +266,39 @@ export default function OfferGenerator() {
                   </p>
                 </div>
 
-                {/* Contact Method Toggle */}
-                <div className="flex bg-gradient-to-r from-yellow-100 via-amber-50 to-yellow-100 rounded-full p-1 shadow-inner">
-                  <button
-                    type="button"
-                    onClick={() => setContactMethod('email')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-full transition-all transform hover:scale-105 ${
-                      contactMethod === 'email'
-                        ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg scale-105'
-                        : 'text-amber-600 hover:bg-amber-100'
-                    }`}
-                  >
-                    <Mail className="w-4 h-4" />
-                    Royal Email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setContactMethod('phone')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-full transition-all transform hover:scale-105 ${
-                      contactMethod === 'phone'
-                        ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg scale-105'
-                        : 'text-amber-600 hover:bg-amber-100'
-                    }`}
-                  >
-                    <Phone className="w-4 h-4" />
-                    Royal Phone
-                  </button>
-                </div>
+                {/* Contact Method Toggle - Only show if multiple methods are enabled */}
+                {(otpConfig.enableEmail && otpConfig.enablePhone) && (
+                  <div className="flex bg-gradient-to-r from-yellow-100 via-amber-50 to-yellow-100 rounded-full p-1 shadow-inner">
+                    {otpConfig.enableEmail && (
+                      <button
+                        type="button"
+                        onClick={() => setContactMethod('email')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-full transition-all transform hover:scale-105 ${
+                          contactMethod === 'email'
+                            ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg scale-105'
+                            : 'text-amber-600 hover:bg-amber-100'
+                        }`}
+                      >
+                        <Mail className="w-4 h-4" />
+                        Royal Email
+                      </button>
+                    )}
+                    {otpConfig.enablePhone && (
+                      <button
+                        type="button"
+                        onClick={() => setContactMethod('phone')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-full transition-all transform hover:scale-105 ${
+                          contactMethod === 'phone'
+                            ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg scale-105'
+                            : 'text-amber-600 hover:bg-amber-100'
+                        }`}
+                      >
+                        <Phone className="w-4 h-4" />
+                        Royal Phone
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* Contact Input */}
                 <div className="relative">
@@ -446,32 +482,36 @@ export default function OfferGenerator() {
                 exit={{ opacity: 0, scale: 0.8 }}
                 className="text-center space-y-8 relative"
               >
-                {/* Floating Crown Elements */}
+                {/* Floating Food Elements */}
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                  {[...Array(4)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="absolute text-2xl opacity-30"
-                      initial={{
-                        x: Math.random() * 300,
-                        y: Math.random() * 300,
-                      }}
-                      animate={{
-                        y: [0, -20, 0],
-                        rotate: [0, 360],
-                        scale: [1, 1.2, 1],
-                        opacity: [0.3, 0.6, 0.3],
-                      }}
-                      transition={{
-                        duration: 3 + i,
-                        repeat: Infinity,
-                        ease: "easeInOut",
-                        delay: i * 0.5,
-                      }}
-                    >
-                      👑
-                    </motion.div>
-                  ))}
+                  {[...Array(6)].map((_, i) => {
+                    const foodEmojis = ['🧇', '🥞', '☕', '🥤', '🍯', '🧈'];
+                    return (
+                      <motion.div
+                        key={i}
+                        className="absolute text-xl md:text-2xl opacity-20"
+                        initial={{
+                          x: Math.random() * 300,
+                          y: Math.random() * 300,
+                        }}
+                        animate={{
+                          y: [0, -25, 0],
+                          x: [0, 10, -10, 0],
+                          rotate: [0, 360],
+                          scale: [1, 1.3, 1],
+                          opacity: [0.2, 0.5, 0.2],
+                        }}
+                        transition={{
+                          duration: 4 + i * 0.5,
+                          repeat: Infinity,
+                          ease: "easeInOut",
+                          delay: i * 0.7,
+                        }}
+                      >
+                        {foodEmojis[i]}
+                      </motion.div>
+                    );
+                  })}
                 </div>
 
                 <div className="relative z-10">
@@ -651,6 +691,21 @@ export default function OfferGenerator() {
               >
                 {offer ? (
                   <>
+                    {/* Timestamp Banner */}
+                    <motion.div
+                      initial={{ opacity: 0, y: -20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 }}
+                      className="bg-gradient-to-r from-amber-100 to-yellow-100 p-3 rounded-xl border border-amber-200 mb-4"
+                    >
+                      <div className="flex items-center justify-center gap-2 text-sm text-amber-700">
+                        <Clock className="w-4 h-4" />
+                        <span className="font-semibold">
+                          Generated: {offer.generatedAtFormatted || new Date().toLocaleString()}
+                        </span>
+                      </div>
+                    </motion.div>
+
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
@@ -674,16 +729,43 @@ export default function OfferGenerator() {
                       }`}>
                         {offer.title}
                       </h2>
-                      <p className="text-gray-600 text-lg mb-6">
+                      <p className="text-gray-600 text-lg mb-4">
                         {offer.description}
                       </p>
+
+                      {/* Anti-abuse information */}
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4 space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">Generated for:</span>
+                          <span className="font-semibold text-gray-700">{offer.contact || contact}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">Generated at:</span>
+                          <span className="font-semibold text-gray-700">
+                            {offer.generatedAtFormatted || new Date().toLocaleString()}
+                          </span>
+                        </div>
+                        {offer.uniqueId && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-500">Verification ID:</span>
+                            <span className="font-mono text-xs text-gray-600">
+                              {offer.uniqueId.slice(-12)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
 
                       {offer.type === 'win' ? (
                         <div className="bg-green-50 p-4 rounded-xl border-2 border-green-200">
                           <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                          <p className="text-green-700 font-semibold">
-                            Congratulations! Show this to our staff to claim your offer!
+                          <p className="text-green-700 font-semibold mb-2">
+                            Congratulations! Show this screen to our staff to claim your offer!
                           </p>
+                          <div className="text-xs text-green-600 space-y-1">
+                            <p>⚠️ This offer expires at the end of today</p>
+                            <p>🛡️ Staff will verify the generation details shown above</p>
+                            <p>📱 Screenshots without verification may not be honored</p>
+                          </div>
                         </div>
                       ) : (
                         <div className="bg-orange-50 p-4 rounded-xl border-2 border-orange-200">

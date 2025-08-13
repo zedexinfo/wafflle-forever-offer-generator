@@ -129,9 +129,19 @@ export async function POST(request: NextRequest) {
     
     await kv.set(historyKey, newHistory);
 
+    const generatedAt = Date.now();
+    const offerWithTimestamp = {
+      ...selectedOffer,
+      generatedAt,
+      generatedAtFormatted: new Date(generatedAt).toLocaleString(),
+      contact: contact,
+      // Add unique identifier for this specific offer generation
+      uniqueId: `${contact}_${generatedAt}_${selectedOffer.id}`
+    };
+
     return NextResponse.json({
       success: true,
-      offer: selectedOffer,
+      offer: offerWithTimestamp,
       message: selectedOffer.type === 'win' 
         ? 'Congratulations! You won an amazing offer!' 
         : 'Keep trying! Better luck next time!'
