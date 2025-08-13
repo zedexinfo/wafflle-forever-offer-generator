@@ -107,7 +107,7 @@ export async function sendOTPEmail(email: string, otp: string): Promise<boolean>
     const mailOptions = {
       from: {
         name: '🧇 Waffle Forever',
-        address: process.env.SMTP_USER!
+        address: "roshan.moolya@zedexinfo.com"
       },
       to: email,
       subject: template.subject,
