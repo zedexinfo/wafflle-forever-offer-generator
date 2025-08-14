@@ -1,5 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@/lib/kv';
+import { 
+  getCurrentUTC, 
+  getSameTimeTomorrowUTC, 
+  getRemainingTimeUntil, 
+  formatRemainingTime,
+  isCooldownActive
+} from '@/lib/time-utils';
+
+// Helper function to register contact for admin panel
+async function registerContactForAdmin(contact: string): Promise<void> {
+  try {
+    const registry = await kv.get('admin:contact_registry') || [];
+    const updatedRegistry = Array.isArray(registry) ? [...registry] : [];
+    
+    if (!updatedRegistry.includes(contact)) {
+      updatedRegistry.push(contact);
+      await kv.set('admin:contact_registry', updatedRegistry);
+    }
+  } catch (error) {
+    console.error('Error registering contact for admin:', error);
+  }
+}
 
 const offers = [
   { 
@@ -76,18 +98,37 @@ export async function POST(request: NextRequest) {
     const lastOfferTime = await kv.get(cooldownKey);
     
     if (lastOfferTime) {
-      const timeDiff = Date.now() - Number(lastOfferTime);
-      const oneDayInMs = 24 * 60 * 60 * 1000;
+      const lastGenerationTime = new Date(Number(lastOfferTime));
       
-      if (timeDiff < oneDayInMs) {
-        const remainingTime = oneDayInMs - timeDiff;
-        const hoursLeft = Math.ceil(remainingTime / (60 * 60 * 1000));
+      if (isCooldownActive(lastGenerationTime)) {
+        const nextAvailableTime = getSameTimeTomorrowUTC(lastGenerationTime);
+        const remainingMs = getRemainingTimeUntil(nextAvailableTime);
+        const timeInfo = formatRemainingTime(remainingMs);
         
+        // Get the existing offer to return it
+        const historyKey = `history:${contact}`;
+        const userHistory = await kv.get(historyKey) || [];
+        const lastOffer = Array.isArray(userHistory) && userHistory.length > 0 
+          ? userHistory[userHistory.length - 1] 
+          : null;
+
         return NextResponse.json(
           { 
             error: 'Cooldown active',
-            message: `Please wait ${hoursLeft} more hours before generating another offer`,
-            hoursLeft
+            message: `Please wait ${timeInfo.display} before generating another offer`,
+            cooldownInfo: {
+              remainingMs,
+              nextAvailableAt: nextAvailableTime.getTime(),
+              nextAvailableAtUTC: nextAvailableTime.toISOString(),
+              ...timeInfo
+            },
+            existingOffer: lastOffer ? {
+              ...lastOffer,
+              generatedAt: Number(lastOfferTime),
+              generatedAtUTC: lastGenerationTime.toISOString(),
+              contact: contact,
+              uniqueId: `${contact}_${lastOfferTime}_${lastOffer.id}`
+            } : null
           },
           { status: 429 }
         );
@@ -109,18 +150,32 @@ export async function POST(request: NextRequest) {
       selectedOffer = loseOffers[Math.floor(Math.random() * loseOffers.length)];
     }
 
-    // Set cooldown for 24 hours
-    await kv.setex(cooldownKey, 86400, Date.now().toString()); // 24 hours in seconds
+    // Set cooldown until same time tomorrow (UTC-based)
+    const generatedAt = getCurrentUTC();
+    const nextAvailableTime = getSameTimeTomorrowUTC(generatedAt);
+    const cooldownDurationMs = getRemainingTimeUntil(nextAvailableTime);
+    const cooldownDurationSeconds = Math.ceil(cooldownDurationMs / 1000);
+    
+    await kv.setex(cooldownKey, cooldownDurationSeconds, generatedAt.getTime().toString());
+
+    // Register contact for admin panel
+    await registerContactForAdmin(contact);
 
     // Store the offer in user history
     const historyKey = `history:${contact}`;
     const userHistory = await kv.get(historyKey) || [];
     const newHistory = Array.isArray(userHistory) ? [...userHistory] : [];
-    newHistory.push({
+    const offerWithMetadata = {
       ...selectedOffer,
-      timestamp: Date.now(),
-      date: new Date().toISOString()
-    });
+      timestamp: generatedAt.getTime(),
+      date: generatedAt.toISOString(),
+      generatedAtUTC: generatedAt.toISOString(),
+      nextAvailableAt: nextAvailableTime.getTime(),
+      nextAvailableAtUTC: nextAvailableTime.toISOString(),
+      consumed: false // Track if admin has marked as consumed
+    };
+    
+    newHistory.push(offerWithMetadata);
     
     // Keep only last 10 offers
     if (newHistory.length > 10) {
@@ -129,19 +184,30 @@ export async function POST(request: NextRequest) {
     
     await kv.set(historyKey, newHistory);
 
-    const generatedAt = Date.now();
     const offerWithTimestamp = {
       ...selectedOffer,
-      generatedAt,
-      generatedAtFormatted: new Date(generatedAt).toLocaleString(),
+      generatedAt: generatedAt.getTime(),
+      generatedAtUTC: generatedAt.toISOString(),
       contact: contact,
       // Add unique identifier for this specific offer generation
-      uniqueId: `${contact}_${generatedAt}_${selectedOffer.id}`
+      uniqueId: `${contact}_${generatedAt.getTime()}_${selectedOffer.id}`,
+      nextAvailableAt: nextAvailableTime.getTime(),
+      nextAvailableAtUTC: nextAvailableTime.toISOString()
     };
 
     return NextResponse.json({
       success: true,
       offer: offerWithTimestamp,
+      cooldownInfo: {
+        remainingMs: cooldownDurationMs,
+        nextAvailableAt: nextAvailableTime.getTime(),
+        nextAvailableAtUTC: nextAvailableTime.toISOString(),
+        hours: Math.floor(cooldownDurationMs / 3600000),
+        minutes: Math.floor((cooldownDurationMs % 3600000) / 60000),
+        seconds: Math.floor((cooldownDurationMs % 60000) / 1000),
+        totalSeconds: Math.floor(cooldownDurationMs / 1000),
+        display: formatRemainingTime(cooldownDurationMs).display
+      },
       message: selectedOffer.type === 'win' 
         ? 'Congratulations! You won an amazing offer!' 
         : 'Keep trying! Better luck next time!'

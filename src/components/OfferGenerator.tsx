@@ -13,9 +13,25 @@ interface Offer {
   type: 'win' | 'lose';
   emoji: string;
   generatedAt?: number;
-  generatedAtFormatted?: string;
+  generatedAtUTC?: string;
   contact?: string;
   uniqueId?: string;
+  nextAvailableAt?: number;
+  nextAvailableAtUTC?: string;
+  consumed?: boolean;
+  consumedAt?: string;
+  consumedBy?: string;
+}
+
+interface CooldownInfo {
+  remainingMs: number;
+  nextAvailableAt: number;
+  nextAvailableAtUTC: string;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  totalSeconds: number;
+  display: string;
 }
 
 export default function OfferGenerator() {
@@ -27,7 +43,23 @@ export default function OfferGenerator() {
   const [error, setError] = useState('');
   const [offer, setOffer] = useState<Offer | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [cooldownHours, setCooldownHours] = useState(0);
+  const [cooldownInfo, setCooldownInfo] = useState<CooldownInfo | null>(null);
+  const [countdownDisplay, setCountdownDisplay] = useState('');
+  const [isCountdownActive, setIsCountdownActive] = useState(false);
+
+  // Helper function to format dates in local time
+  const formatLocalTime = (dateInput: string | number): string => {
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput);
+    return date.toLocaleString(undefined, {
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: true,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
 
   // Get OTP configuration from environment
   const otpConfig = getOTPConfig();
@@ -47,6 +79,48 @@ export default function OfferGenerator() {
       }
     }
   }, [otpConfig]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (!cooldownInfo) return;
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      const remaining = Math.max(0, cooldownInfo.nextAvailableAt - now);
+      
+      if (remaining <= 0) {
+        setIsCountdownActive(false);
+        setCountdownDisplay('');
+        setCooldownInfo(null);
+        return;
+      }
+
+      setIsCountdownActive(true);
+      const totalSeconds = Math.floor(remaining / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      let display = '';
+      if (hours > 0) {
+        display = `${hours}h ${minutes}m ${seconds}s`;
+      } else if (minutes > 0) {
+        display = `${minutes}m ${seconds}s`;
+      } else {
+        display = `${seconds}s`;
+      }
+
+      setCountdownDisplay(display);
+    };
+
+    // Update immediately
+    updateCountdown();
+    
+    // Then update every second
+    const interval = setInterval(updateCountdown, 1000);
+    
+    return () => clearInterval(interval);
+  }, [cooldownInfo]);
 
   const sendOTP = async () => {
     if (!contact.trim()) {
@@ -73,11 +147,13 @@ export default function OfferGenerator() {
           console.log('OTP:', data.otp);
         }
       } else {
-        if (data.cooldownActive && data.hoursLeft) {
-          setCooldownHours(data.hoursLeft);
+        if (data.cooldownActive && data.cooldownInfo && data.existingOffer) {
+          setCooldownInfo(data.cooldownInfo);
+          setOffer(data.existingOffer);
           setStep('result');
+        } else {
+          setError(data.error || 'Failed to send OTP');
         }
-        setError(data.error || 'Failed to send OTP');
       }
     } catch {
       setError('Network error. Please try again.');
@@ -107,8 +183,9 @@ export default function OfferGenerator() {
       if (data.success) {
         setStep('spin');
       } else {
-        if (data.hoursLeft) {
-          setCooldownHours(data.hoursLeft);
+        if (data.cooldownInfo && data.existingOffer) {
+          setCooldownInfo(data.cooldownInfo);
+          setOffer(data.existingOffer);
           setStep('result');
         }
         setError(data.error || 'Invalid OTP');
@@ -138,10 +215,15 @@ export default function OfferGenerator() {
 
       if (data.success) {
         setOffer(data.offer);
+        // Set cooldown info from successful generation
+        if (data.cooldownInfo) {
+          setCooldownInfo(data.cooldownInfo);
+        }
         setStep('result');
       } else {
-        if (data.hoursLeft) {
-          setCooldownHours(data.hoursLeft);
+        if (data.cooldownInfo && data.existingOffer) {
+          setCooldownInfo(data.cooldownInfo);
+          setOffer(data.existingOffer);
         }
         setError(data.error || 'Failed to generate offer');
         setStep('result');
@@ -160,7 +242,10 @@ export default function OfferGenerator() {
     setOtp('');
     setOffer(null);
     setError('');
-    setCooldownHours(0);
+    setCooldownInfo(null);
+    setCountdownDisplay('');
+    setIsCountdownActive(false);
+    setIsSpinning(false);
   };
 
   return (
@@ -701,7 +786,7 @@ export default function OfferGenerator() {
                       <div className="flex items-center justify-center gap-2 text-sm text-amber-700">
                         <Clock className="w-4 h-4" />
                         <span className="font-semibold">
-                          Generated: {offer.generatedAtFormatted || new Date().toLocaleString()}
+                          Generated: {offer.generatedAtUTC ? formatLocalTime(offer.generatedAtUTC) : formatLocalTime(offer.generatedAt || Date.now())}
                         </span>
                       </div>
                     </motion.div>
@@ -742,7 +827,7 @@ export default function OfferGenerator() {
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-500">Generated at:</span>
                           <span className="font-semibold text-gray-700">
-                            {offer.generatedAtFormatted || new Date().toLocaleString()}
+                            {offer.generatedAtUTC ? formatLocalTime(offer.generatedAtUTC) : formatLocalTime(offer.generatedAt || Date.now())}
                           </span>
                         </div>
                         {offer.uniqueId && (
@@ -775,30 +860,94 @@ export default function OfferGenerator() {
                           </p>
                         </div>
                       )}
+
+                      {/* Consumption Status Display */}
+                      {offer.type === 'win' && (
+                        <div className={`p-3 rounded-xl border-2 mt-4 ${
+                          offer.consumed 
+                            ? 'bg-purple-50 border-purple-200' 
+                            : 'bg-amber-50 border-amber-200'
+                        }`}>
+                          <div className="flex items-center justify-center gap-2">
+                            {offer.consumed ? (
+                              <>
+                                <CheckCircle className="w-5 h-5 text-purple-600" />
+                                <span className="text-purple-700 font-semibold">
+                                  ✅ Offer Consumed - Thank you!
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-5 h-5 text-amber-600" />
+                                <span className="text-amber-700 font-semibold">
+                                  🎁 Ready to Claim - Show to Staff
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          {/* Show consumption details if consumed */}
+                          {offer.consumed && offer.consumedBy && (
+                            <div className="text-xs text-purple-600 text-center mt-2">
+                              Processed by: {offer.consumedBy}
+                              {offer.consumedAt && (
+                                <div className="mt-1">
+                                  on {formatLocalTime(offer.consumedAt)}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Show countdown timer if user is in cooldown */}
+                      {isCountdownActive && (
+                        <div className="bg-blue-50 p-4 rounded-xl border-2 border-blue-200 mt-4">
+                          <Clock className="w-8 h-8 text-blue-500 mx-auto mb-2" />
+                          <p className="text-blue-700 font-semibold mb-2">
+                            Next spin available in:
+                          </p>
+                          <div className="text-2xl font-bold text-blue-800 font-mono">
+                            {countdownDisplay}
+                          </div>
+                          <p className="text-xs text-blue-600 mt-2">
+                            Next available: {cooldownInfo?.nextAvailableAtUTC ? formatLocalTime(cooldownInfo.nextAvailableAtUTC) : 'Calculating...'}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Show spin button ONLY when cooldown has completely expired and it's the next day */}
+                      {!isCountdownActive && !cooldownInfo && (
+                        <div className="bg-green-50 p-4 rounded-xl border-2 border-green-200 mt-4">
+                          <p className="text-green-700 font-semibold mb-4">
+                            Ready for your daily spin!
+                          </p>
+                          <motion.button
+                            onClick={generateOffer}
+                            disabled={isSpinning}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-2xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition-all transform disabled:opacity-50"
+                          >
+                            {isSpinning ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                <span>Spinning...</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center gap-2">
+                                <Gift className="w-5 h-5" />
+                                <span>Spin for New Offer!</span>
+                                <Gift className="w-5 h-5" />
+                              </div>
+                            )}
+                          </motion.button>
+                        </div>
+                      )}
                     </motion.div>
                   </>
                 ) : (
                   <>
-                    {cooldownHours > 0 ? (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="space-y-4"
-                      >
-                        <Clock className="w-16 h-16 text-orange-500 mx-auto" />
-                        <h2 className="text-2xl font-bold text-orange-800">
-                          Come Back Later!
-                        </h2>
-                        <div className="bg-orange-50 p-6 rounded-xl border-2 border-orange-200">
-                          <p className="text-orange-700 font-semibold">
-                            You&apos;ve already claimed an offer today!
-                          </p>
-                          <p className="text-orange-600">
-                            Please wait {cooldownHours} more hours before generating another offer.
-                          </p>
-                        </div>
-                      </motion.div>
-                    ) : (
+                    {error && (
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
@@ -808,22 +957,23 @@ export default function OfferGenerator() {
                         <h2 className="text-2xl font-bold text-red-800">
                           Oops! Something went wrong
                         </h2>
-                        {error && (
-                          <div className="bg-red-50 p-4 rounded-xl border-2 border-red-200">
-                            <p className="text-red-700">{error}</p>
-                          </div>
-                        )}
+                        <div className="bg-red-50 p-4 rounded-xl border-2 border-red-200">
+                          <p className="text-red-700">{error}</p>
+                        </div>
                       </motion.div>
                     )}
                   </>
                 )}
 
-                <button
-                  onClick={resetApp}
-                  className="w-full bg-gradient-to-r from-gray-400 to-gray-500 text-white py-4 rounded-2xl font-semibold text-lg hover:from-gray-500 hover:to-gray-600 transition-all transform hover:scale-105 active:scale-95"
-                >
-                  Try Again Tomorrow
-                </button>
+                {/* Only show Start Over button when cooldown is NOT active */}
+                {!isCountdownActive && (
+                  <button
+                    onClick={resetApp}
+                    className="w-full bg-gradient-to-r from-gray-400 to-gray-500 text-white py-4 rounded-2xl font-semibold text-lg hover:from-gray-500 hover:to-gray-600 transition-all transform hover:scale-105 active:scale-95"
+                  >
+                    Try Again
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
