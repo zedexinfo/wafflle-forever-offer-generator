@@ -13,17 +13,18 @@ interface Offer {
   type: 'win' | 'lose';
   emoji: string;
   generatedAt?: number;
-  generatedAtFormatted?: string;
+  generatedAtUTC?: string;
   contact?: string;
   uniqueId?: string;
   nextAvailableAt?: number;
-  nextAvailableAtFormatted?: string;
+  nextAvailableAtUTC?: string;
+  consumed?: boolean;
 }
 
 interface CooldownInfo {
   remainingMs: number;
   nextAvailableAt: number;
-  nextAvailableAtFormatted: string;
+  nextAvailableAtUTC: string;
   hours: number;
   minutes: number;
   seconds: number;
@@ -43,6 +44,20 @@ export default function OfferGenerator() {
   const [cooldownInfo, setCooldownInfo] = useState<CooldownInfo | null>(null);
   const [countdownDisplay, setCountdownDisplay] = useState('');
   const [isCountdownActive, setIsCountdownActive] = useState(false);
+
+  // Helper function to format dates in local time
+  const formatLocalTime = (dateInput: string | number): string => {
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput);
+    return date.toLocaleString(undefined, {
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: true,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
 
   // Get OTP configuration from environment
   const otpConfig = getOTPConfig();
@@ -766,7 +781,7 @@ export default function OfferGenerator() {
                       <div className="flex items-center justify-center gap-2 text-sm text-amber-700">
                         <Clock className="w-4 h-4" />
                         <span className="font-semibold">
-                          Generated: {offer.generatedAtFormatted || new Date().toLocaleString()}
+                          Generated: {offer.generatedAtUTC ? formatLocalTime(offer.generatedAtUTC) : formatLocalTime(offer.generatedAt || Date.now())}
                         </span>
                       </div>
                     </motion.div>
@@ -807,7 +822,7 @@ export default function OfferGenerator() {
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-500">Generated at:</span>
                           <span className="font-semibold text-gray-700">
-                            {offer.generatedAtFormatted || new Date().toLocaleString()}
+                            {offer.generatedAtUTC ? formatLocalTime(offer.generatedAtUTC) : formatLocalTime(offer.generatedAt || Date.now())}
                           </span>
                         </div>
                         {offer.uniqueId && (
@@ -841,6 +856,33 @@ export default function OfferGenerator() {
                         </div>
                       )}
 
+                      {/* Consumption Status Display */}
+                      {offer.type === 'win' && (
+                        <div className={`p-3 rounded-xl border-2 mt-4 ${
+                          offer.consumed 
+                            ? 'bg-purple-50 border-purple-200' 
+                            : 'bg-amber-50 border-amber-200'
+                        }`}>
+                          <div className="flex items-center justify-center gap-2">
+                            {offer.consumed ? (
+                              <>
+                                <CheckCircle className="w-5 h-5 text-purple-600" />
+                                <span className="text-purple-700 font-semibold">
+                                  ✅ Offer Consumed - Thank you!
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-5 h-5 text-amber-600" />
+                                <span className="text-amber-700 font-semibold">
+                                  🎁 Ready to Claim - Show to Staff
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Show countdown timer if user is in cooldown */}
                       {isCountdownActive && (
                         <div className="bg-blue-50 p-4 rounded-xl border-2 border-blue-200 mt-4">
@@ -852,16 +894,16 @@ export default function OfferGenerator() {
                             {countdownDisplay}
                           </div>
                           <p className="text-xs text-blue-600 mt-2">
-                            Next available: {cooldownInfo?.nextAvailableAtFormatted}
+                            Next available: {cooldownInfo?.nextAvailableAtUTC ? formatLocalTime(cooldownInfo.nextAvailableAtUTC) : 'Calculating...'}
                           </p>
                         </div>
                       )}
 
-                      {/* Show spin button when countdown expires but we're showing existing offer */}
-                      {!isCountdownActive && cooldownInfo && (
+                      {/* Show spin button ONLY when cooldown has completely expired and it's the next day */}
+                      {!isCountdownActive && !cooldownInfo && (
                         <div className="bg-green-50 p-4 rounded-xl border-2 border-green-200 mt-4">
                           <p className="text-green-700 font-semibold mb-4">
-                            Your cooldown has expired! Ready for a new spin?
+                            Ready for your daily spin!
                           </p>
                           <motion.button
                             onClick={generateOffer}

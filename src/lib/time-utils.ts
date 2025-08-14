@@ -1,32 +1,20 @@
-// Time utility functions for IST (Indian Standard Time) operations
-
-export const IST_OFFSET = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+// Time utility functions using UTC for global compatibility
 
 /**
- * Get current time in IST
+ * Get current UTC time
  */
-export function getCurrentIST(): Date {
-  const utc = new Date();
-  const ist = new Date(utc.getTime() + IST_OFFSET);
-  return ist;
+export function getCurrentUTC(): Date {
+  return new Date();
 }
 
 /**
- * Convert any date to IST
+ * Get the same time tomorrow in UTC
+ * For example: if it's 1:05 PM today, returns 1:05 PM tomorrow (UTC)
  */
-export function toIST(date: Date): Date {
-  const utc = new Date(date.getTime());
-  return new Date(utc.getTime() + IST_OFFSET);
-}
-
-/**
- * Get the same time tomorrow in IST
- * For example: if it's 1:05 PM today, returns 1:05 PM tomorrow
- */
-export function getSameTimeTomorrowIST(fromTime?: Date): Date {
-  const baseTime = fromTime ? toIST(fromTime) : getCurrentIST();
+export function getSameTimeTomorrowUTC(fromTime?: Date): Date {
+  const baseTime = fromTime ? new Date(fromTime) : getCurrentUTC();
   const tomorrow = new Date(baseTime);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
   return tomorrow;
 }
 
@@ -34,7 +22,7 @@ export function getSameTimeTomorrowIST(fromTime?: Date): Date {
  * Calculate remaining time until a specific time in milliseconds
  */
 export function getRemainingTimeUntil(targetTime: Date): number {
-  const now = getCurrentIST();
+  const now = getCurrentUTC();
   return Math.max(0, targetTime.getTime() - now.getTime());
 }
 
@@ -75,17 +63,16 @@ export function formatRemainingTime(remainingMs: number): {
  * Check if a cooldown period is still active
  */
 export function isCooldownActive(generatedAt: Date): boolean {
-  const nextAvailableTime = getSameTimeTomorrowIST(generatedAt);
+  const nextAvailableTime = getSameTimeTomorrowUTC(generatedAt);
   const remaining = getRemainingTimeUntil(nextAvailableTime);
   return remaining > 0;
 }
 
 /**
- * Format IST time in 12-hour format
+ * Format time using user's local timezone (for client-side use)
  */
-export function formatISTTime(date: Date): string {
-  return toIST(date).toLocaleString('en-IN', {
-    timeZone: 'Asia/Kolkata',
+export function formatLocalTime(date: Date): string {
+  return date.toLocaleString(undefined, {
     hour: 'numeric',
     minute: 'numeric',
     second: 'numeric',

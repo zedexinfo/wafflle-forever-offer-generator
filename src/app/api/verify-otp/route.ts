@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@/lib/kv';
 import { 
-  getSameTimeTomorrowIST, 
+  getSameTimeTomorrowUTC, 
   getRemainingTimeUntil, 
   formatRemainingTime,
-  isCooldownActive,
-  formatISTTime
+  isCooldownActive
 } from '@/lib/time-utils';
 
 export async function POST(request: NextRequest) {
@@ -48,7 +47,7 @@ export async function POST(request: NextRequest) {
       const lastGenerationTime = new Date(Number(lastOfferTime));
       
       if (isCooldownActive(lastGenerationTime)) {
-        const nextAvailableTime = getSameTimeTomorrowIST(lastGenerationTime);
+        const nextAvailableTime = getSameTimeTomorrowUTC(lastGenerationTime);
         const remainingMs = getRemainingTimeUntil(nextAvailableTime);
         const timeInfo = formatRemainingTime(remainingMs);
         
@@ -66,13 +65,13 @@ export async function POST(request: NextRequest) {
             cooldownInfo: {
               remainingMs,
               nextAvailableAt: nextAvailableTime.getTime(),
-              nextAvailableAtFormatted: formatISTTime(nextAvailableTime),
+              nextAvailableAtUTC: nextAvailableTime.toISOString(),
               ...timeInfo
             },
             existingOffer: lastOffer ? {
               ...lastOffer,
               generatedAt: Number(lastOfferTime),
-              generatedAtFormatted: formatISTTime(lastGenerationTime),
+              generatedAtUTC: lastGenerationTime.toISOString(),
               contact: contact,
               uniqueId: `${contact}_${lastOfferTime}_${lastOffer.id}`
             } : null

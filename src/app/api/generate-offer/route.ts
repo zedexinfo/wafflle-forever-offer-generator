@@ -1,13 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@/lib/kv';
 import { 
-  getCurrentIST, 
-  getSameTimeTomorrowIST, 
+  getCurrentUTC, 
+  getSameTimeTomorrowUTC, 
   getRemainingTimeUntil, 
   formatRemainingTime,
-  isCooldownActive,
-  formatISTTime
+  isCooldownActive
 } from '@/lib/time-utils';
+
+// Helper function to register contact for admin panel
+async function registerContactForAdmin(contact: string): Promise<void> {
+  try {
+    const registry = await kv.get('admin:contact_registry') || [];
+    const updatedRegistry = Array.isArray(registry) ? [...registry] : [];
+    
+    if (!updatedRegistry.includes(contact)) {
+      updatedRegistry.push(contact);
+      await kv.set('admin:contact_registry', updatedRegistry);
+    }
+  } catch (error) {
+    console.error('Error registering contact for admin:', error);
+  }
+}
 
 const offers = [
   { 
@@ -87,7 +101,7 @@ export async function POST(request: NextRequest) {
       const lastGenerationTime = new Date(Number(lastOfferTime));
       
       if (isCooldownActive(lastGenerationTime)) {
-        const nextAvailableTime = getSameTimeTomorrowIST(lastGenerationTime);
+        const nextAvailableTime = getSameTimeTomorrowUTC(lastGenerationTime);
         const remainingMs = getRemainingTimeUntil(nextAvailableTime);
         const timeInfo = formatRemainingTime(remainingMs);
         
@@ -105,13 +119,13 @@ export async function POST(request: NextRequest) {
             cooldownInfo: {
               remainingMs,
               nextAvailableAt: nextAvailableTime.getTime(),
-              nextAvailableAtFormatted: formatISTTime(nextAvailableTime),
+              nextAvailableAtUTC: nextAvailableTime.toISOString(),
               ...timeInfo
             },
             existingOffer: lastOffer ? {
               ...lastOffer,
               generatedAt: Number(lastOfferTime),
-              generatedAtFormatted: formatISTTime(lastGenerationTime),
+              generatedAtUTC: lastGenerationTime.toISOString(),
               contact: contact,
               uniqueId: `${contact}_${lastOfferTime}_${lastOffer.id}`
             } : null
@@ -136,13 +150,16 @@ export async function POST(request: NextRequest) {
       selectedOffer = loseOffers[Math.floor(Math.random() * loseOffers.length)];
     }
 
-    // Set cooldown until same time tomorrow (IST-based)
-    const generatedAt = getCurrentIST();
-    const nextAvailableTime = getSameTimeTomorrowIST(generatedAt);
+    // Set cooldown until same time tomorrow (UTC-based)
+    const generatedAt = getCurrentUTC();
+    const nextAvailableTime = getSameTimeTomorrowUTC(generatedAt);
     const cooldownDurationMs = getRemainingTimeUntil(nextAvailableTime);
     const cooldownDurationSeconds = Math.ceil(cooldownDurationMs / 1000);
     
     await kv.setex(cooldownKey, cooldownDurationSeconds, generatedAt.getTime().toString());
+
+    // Register contact for admin panel
+    await registerContactForAdmin(contact);
 
     // Store the offer in user history
     const historyKey = `history:${contact}`;
@@ -152,9 +169,9 @@ export async function POST(request: NextRequest) {
       ...selectedOffer,
       timestamp: generatedAt.getTime(),
       date: generatedAt.toISOString(),
-      generatedAtIST: formatISTTime(generatedAt),
+      generatedAtUTC: generatedAt.toISOString(),
       nextAvailableAt: nextAvailableTime.getTime(),
-      nextAvailableAtIST: formatISTTime(nextAvailableTime),
+      nextAvailableAtUTC: nextAvailableTime.toISOString(),
       consumed: false // Track if admin has marked as consumed
     };
     
@@ -170,12 +187,12 @@ export async function POST(request: NextRequest) {
     const offerWithTimestamp = {
       ...selectedOffer,
       generatedAt: generatedAt.getTime(),
-      generatedAtFormatted: formatISTTime(generatedAt),
+      generatedAtUTC: generatedAt.toISOString(),
       contact: contact,
       // Add unique identifier for this specific offer generation
       uniqueId: `${contact}_${generatedAt.getTime()}_${selectedOffer.id}`,
       nextAvailableAt: nextAvailableTime.getTime(),
-      nextAvailableAtFormatted: formatISTTime(nextAvailableTime)
+      nextAvailableAtUTC: nextAvailableTime.toISOString()
     };
 
     return NextResponse.json({

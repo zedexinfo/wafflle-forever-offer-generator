@@ -11,19 +11,25 @@ interface Offer {
 }
 
 import { NextRequest, NextResponse } from 'next/server';
-import { formatISTTime, getCurrentIST, isCooldownActive } from '@/lib/time-utils';
+import { kv } from '@/lib/kv';
+import { getCurrentUTC, isCooldownActive } from '@/lib/time-utils';
 
-// Simple admin authentication
-function isAuthorizedAdmin(request: NextRequest): boolean {
+// Simple admin session management
+function isAuthorizedAdmin(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
   const adminKey = process.env.ADMIN_API_KEY || 'admin-secret-key';
-  return authHeader === `Bearer ${adminKey}`;
+  
+  if (authHeader === `Bearer ${adminKey}`) {
+    return adminKey; // Return session identifier
+  }
+  return null;
 }
 
 // GET: Fetch offers with filtering options
 export async function GET(request: NextRequest) {
   try {
-    if (!isAuthorizedAdmin(request)) {
+    const session = isAuthorizedAdmin(request);
+    if (!session) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -81,7 +87,7 @@ export async function GET(request: NextRequest) {
       ...offer,
       isExpired: !isCooldownActive(new Date(offer.timestamp)),
       isConsumed: offer.consumed || false,
-      generatedAtFormatted: formatISTTime(new Date(offer.timestamp)),
+      generatedAtFormatted: new Date(offer.timestamp).toLocaleString(),
       status: offer.consumed 
         ? 'consumed' 
         : !isCooldownActive(new Date(offer.timestamp)) 
@@ -97,7 +103,7 @@ export async function GET(request: NextRequest) {
       offers: enrichedOffers,
       totalCount: enrichedOffers.length,
       filters: { date, email, status },
-      generatedAt: getCurrentIST().toISOString()
+      generatedAt: getCurrentUTC().toISOString()
     });
 
   } catch (error) {
@@ -112,7 +118,8 @@ export async function GET(request: NextRequest) {
 // POST: Mark offer as consumed/not consumed
 export async function POST(request: NextRequest) {
   try {
-    if (!isAuthorizedAdmin(request)) {
+    const session = isAuthorizedAdmin(request);
+    if (!session) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -138,7 +145,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: `Offer(s) updated successfully`,
       updatedCount,
-      actionTime: getCurrentIST().toISOString()
+      actionTime: getCurrentUTC().toISOString()
     });
 
   } catch (error) {
@@ -150,20 +157,43 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper function to get all offers (simplified for mock implementation)
+// Helper function to get all offers from Redis
 async function getAllOffers(): Promise<Offer[]> {
   const allOffers: Offer[] = [];
   
-  // In a real implementation, this would scan all history:* keys
-  // For now, we'll simulate some data or try to get from known patterns
-  
   try {
-    // This is a simplified approach - in reality we'd scan the database
-    // For the mock implementation, we can't easily scan all keys
-    // So we'll return empty array or implement a registry system
+    // Since we can't easily scan Redis keys in Vercel KV, we'll implement a registry approach
+    // Store contact emails in a registry and fetch their histories
     
-    // TODO: Implement proper key scanning for real Redis implementation
-    console.log('Getting all offers - this would scan all history:* keys in production');
+    // For now, we'll use a simple registry approach or direct scanning if supported
+    // This is a workaround for Vercel KV limitations
+    
+    // Get the registry of all contacts (if it exists)
+    const contactRegistry = await kv.get('admin:contact_registry') || [];
+    
+    if (Array.isArray(contactRegistry)) {
+      // Fetch history for each contact
+      for (const contact of contactRegistry) {
+        const historyKey = `history:${contact}`;
+        const userHistory = await kv.get(historyKey);
+        
+        if (userHistory && Array.isArray(userHistory)) {
+          // Add all offers from this user's history
+          userHistory.forEach(offer => {
+            allOffers.push({
+              ...offer,
+              contact: contact
+            });
+          });
+        }
+      }
+    }
+    
+    // If registry doesn't exist or is empty, try some common patterns
+    // This is a fallback and not scalable for production
+    if (allOffers.length === 0) {
+      console.log('No offers found via registry, admin panel may be empty until contacts are registered');
+    }
     
   } catch (error) {
     console.error('Error getting all offers:', error);
@@ -172,30 +202,36 @@ async function getAllOffers(): Promise<Offer[]> {
   return allOffers;
 }
 
+
+
 // Helper function to mark an offer as consumed
 async function markOfferAsConsumed(identifier: string, consumed: boolean): Promise<number> {
-  const updatedCount = 0;
+  let updatedCount = 0;
   
   try {
-    // The identifier could be an email, verification ID, or unique offer ID
-    // We need to search through histories to find matching offers
+    // The identifier is expected to be the user's contact (email/phone)
+    const historyKey = `history:${identifier}`;
+    const userHistory = await kv.get(historyKey);
     
-    // This is where we'd implement the actual update logic
-    // For example, if identifier is an email:
-    // const historyKey = `history:${identifier}`;
-    // const userHistory = await kv.get(historyKey);
-    // if (userHistory && Array.isArray(userHistory)) {
-    //   // Update the latest offer or find by unique ID
-    //   const updatedHistory = userHistory.map(offer => ({
-    //     ...offer,
-    //     consumed,
-    //     consumedAt: consumed ? getCurrentIST().toISOString() : undefined
-    //   }));
-    //   await kv.set(historyKey, updatedHistory);
-    //   updatedCount = userHistory.length;
-    // }
-    
-    console.log(`Would mark offers for ${identifier} as consumed: ${consumed}`);
+    if (userHistory && Array.isArray(userHistory) && userHistory.length > 0) {
+      // Update the latest offer (last one in array) as consumed
+      const updatedHistory = [...userHistory];
+      const lastOfferIndex = updatedHistory.length - 1;
+      
+      updatedHistory[lastOfferIndex] = {
+        ...updatedHistory[lastOfferIndex],
+        consumed: consumed,
+        consumedAt: consumed ? getCurrentUTC().toISOString() : undefined,
+        consumedBy: consumed ? 'admin' : undefined
+      };
+      
+      await kv.set(historyKey, updatedHistory);
+      updatedCount = 1;
+      
+      console.log(`Successfully marked offer for ${identifier} as consumed: ${consumed}`);
+    } else {
+      console.log(`No offer history found for ${identifier}`);
+    }
     
   } catch (error) {
     console.error('Error marking offer as consumed:', error);

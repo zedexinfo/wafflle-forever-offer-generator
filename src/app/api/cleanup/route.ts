@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@/lib/kv';
-import { getCurrentIST } from '@/lib/time-utils';
+import { getCurrentUTC } from '@/lib/time-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         cleanedOffers,
         cleanedCooldowns,
         cleanedOTPs,
-        cleanupTime: getCurrentIST().toISOString()
+        cleanupTime: getCurrentUTC().toISOString()
       }
     });
 
@@ -125,6 +125,6 @@ export async function GET() {
   return NextResponse.json({
     message: 'Use POST request with proper authorization to trigger cleanup',
     usage: 'POST /api/cleanup with Authorization: Bearer <CLEANUP_API_KEY>',
-    currentTime: getCurrentIST().toISOString()
+    currentTime: getCurrentUTC().toISOString()
   });
 }
