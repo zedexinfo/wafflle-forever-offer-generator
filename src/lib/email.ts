@@ -143,8 +143,8 @@ export async function sendOTPEmail(email: string, otp: string): Promise<boolean>
 
     const mailOptions = {
       from: {
-        name: '🧇 Waffle Forever',
-        address: "roshan.moolya@zedexinfo.com"
+        name: '🧇 Waffle Forever Offers',
+        address: process.env.SMTP_ADDRESS ?? "sales@waffleforever.com"
       },
       to: email,
       subject: template.subject,
