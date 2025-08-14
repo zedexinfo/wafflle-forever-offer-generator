@@ -1,7 +1,5 @@
 {
-  "/api/generate-offer/route": "app/api/generate-offer/route.js",
-  "/api/send-otp/route": "app/api/send-otp/route.js",
-  "/api/verify-otp/route": "app/api/verify-otp/route.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/page": "app/page.js"
+  "/admin/page": "app/admin/page.js",
+  "/api/admin/offers/route": "app/api/admin/offers/route.js",
+  "/api/cleanup/route": "app/api/cleanup/route.js"
 }
