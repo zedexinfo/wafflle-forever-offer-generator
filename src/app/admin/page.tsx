@@ -39,6 +39,19 @@ export default function AdminPage() {
     email: '',
     status: 'all'
   });
+  
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    identifier: string;
+    currentStatus: boolean;
+    newStatus: boolean;
+    offerTitle?: string;
+  } | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState('');
+  
+  // Staff members list
+  const staffMembers = ['roshan', 'kedar', 'paresh', 'neekee', 'nirdesh', 'ashwin'];
 
   // Authentication
   const handleLogin = () => {
@@ -78,8 +91,39 @@ export default function AdminPage() {
     }
   };
 
+  // Show confirmation modal
+  const showConfirmation = (identifier: string, currentStatus: boolean, offerTitle?: string) => {
+    setConfirmModal({
+      show: true,
+      identifier,
+      currentStatus,
+      newStatus: !currentStatus,
+      offerTitle
+    });
+    setSelectedStaff(''); // Reset selection
+  };
+  
+  // Close confirmation modal
+  const closeConfirmation = () => {
+    setConfirmModal(null);
+    setSelectedStaff('');
+  };
+  
+  // Confirm the action
+  const confirmAction = async () => {
+    if (!confirmModal) return;
+    
+    if (!selectedStaff) {
+      alert('Please select a staff member');
+      return;
+    }
+    
+    await markAsConsumed(confirmModal.identifier, confirmModal.newStatus, selectedStaff);
+    closeConfirmation();
+  };
+
   // Mark offer as consumed/not consumed
-  const markAsConsumed = async (identifier: string, consumed: boolean) => {
+  const markAsConsumed = async (identifier: string, consumed: boolean, staffMember?: string) => {
     try {
       const response = await fetch('/api/admin/offers', {
         method: 'POST',
@@ -90,7 +134,8 @@ export default function AdminPage() {
         body: JSON.stringify({
           action: 'mark_consumed',
           identifier,
-          consumed
+          consumed,
+          staffMember
         })
       });
 
@@ -360,7 +405,7 @@ export default function AdminPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         {offer.status !== 'expired' && (
                           <button
-                            onClick={() => markAsConsumed(offer.contact, !offer.isConsumed)}
+                            onClick={() => showConfirmation(offer.contact, offer.isConsumed, offer.title)}
                             className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                               offer.isConsumed
                                 ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
@@ -379,6 +424,74 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {confirmModal?.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Confirm Action
+            </h3>
+            
+            <div className="mb-4">
+              <p className="text-gray-600 mb-2">
+                Are you sure you want to mark this offer as <span className="font-semibold">
+                  {confirmModal.newStatus ? 'consumed' : 'not consumed'}
+                </span>?
+              </p>
+              
+              {confirmModal.offerTitle && (
+                <p className="text-sm text-gray-500 mb-2">
+                  Offer: <span className="font-medium">{confirmModal.offerTitle}</span>
+                </p>
+              )}
+              
+              <p className="text-sm text-gray-500">
+                Contact: <span className="font-medium">{confirmModal.identifier}</span>
+              </p>
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Staff Member *
+              </label>
+              <select
+                value={selectedStaff}
+                onChange={(e) => setSelectedStaff(e.target.value)}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                required
+              >
+                <option value="">Select staff member...</option>
+                {staffMembers.map(staff => (
+                  <option key={staff} value={staff}>
+                    {staff.charAt(0).toUpperCase() + staff.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={closeConfirmation}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAction}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                disabled={!selectedStaff}
+              >
+                Confirm
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

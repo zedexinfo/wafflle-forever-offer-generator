@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { action, identifier, consumed } = await request.json();
+    const { action, identifier, consumed, staffMember } = await request.json();
     
     if (!action || !identifier) {
       return NextResponse.json(
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     let updatedCount = 0;
 
     if (action === 'mark_consumed') {
-      updatedCount = await markOfferAsConsumed(identifier, consumed !== false);
+      updatedCount = await markOfferAsConsumed(identifier, consumed !== false, staffMember);
     }
 
     return NextResponse.json({
@@ -205,7 +205,7 @@ async function getAllOffers(): Promise<Offer[]> {
 
 
 // Helper function to mark an offer as consumed
-async function markOfferAsConsumed(identifier: string, consumed: boolean): Promise<number> {
+async function markOfferAsConsumed(identifier: string, consumed: boolean, staffMember?: string): Promise<number> {
   let updatedCount = 0;
   
   try {
@@ -222,7 +222,7 @@ async function markOfferAsConsumed(identifier: string, consumed: boolean): Promi
         ...updatedHistory[lastOfferIndex],
         consumed: consumed,
         consumedAt: consumed ? getCurrentUTC().toISOString() : undefined,
-        consumedBy: consumed ? 'admin' : undefined
+        consumedBy: consumed ? (staffMember || 'admin') : undefined
       };
       
       await kv.set(historyKey, updatedHistory);

@@ -19,6 +19,8 @@ interface Offer {
   nextAvailableAt?: number;
   nextAvailableAtUTC?: string;
   consumed?: boolean;
+  consumedAt?: string;
+  consumedBy?: string;
 }
 
 interface CooldownInfo {
@@ -880,6 +882,17 @@ export default function OfferGenerator() {
                               </>
                             )}
                           </div>
+                          {/* Show consumption details if consumed */}
+                          {offer.consumed && offer.consumedBy && (
+                            <div className="text-xs text-purple-600 text-center mt-2">
+                              Processed by: {offer.consumedBy}
+                              {offer.consumedAt && (
+                                <div className="mt-1">
+                                  on {formatLocalTime(offer.consumedAt)}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -949,12 +962,15 @@ export default function OfferGenerator() {
                   </>
                 )}
 
-                <button
-                  onClick={resetApp}
-                  className="w-full bg-gradient-to-r from-gray-400 to-gray-500 text-white py-4 rounded-2xl font-semibold text-lg hover:from-gray-500 hover:to-gray-600 transition-all transform hover:scale-105 active:scale-95"
-                >
-                  {isCountdownActive ? 'Start Over' : 'Try Again'}
-                </button>
+                {/* Only show Start Over button when cooldown is NOT active */}
+                {!isCountdownActive && (
+                  <button
+                    onClick={resetApp}
+                    className="w-full bg-gradient-to-r from-gray-400 to-gray-500 text-white py-4 rounded-2xl font-semibold text-lg hover:from-gray-500 hover:to-gray-600 transition-all transform hover:scale-105 active:scale-95"
+                  >
+                    Try Again
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
