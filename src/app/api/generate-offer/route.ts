@@ -198,6 +198,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       offer: offerWithTimestamp,
+      cooldownInfo: {
+        remainingMs: cooldownDurationMs,
+        nextAvailableAt: nextAvailableTime.getTime(),
+        nextAvailableAtUTC: nextAvailableTime.toISOString(),
+        hours: Math.floor(cooldownDurationMs / 3600000),
+        minutes: Math.floor((cooldownDurationMs % 3600000) / 60000),
+        seconds: Math.floor((cooldownDurationMs % 60000) / 1000),
+        totalSeconds: Math.floor(cooldownDurationMs / 1000),
+        display: formatRemainingTime(cooldownDurationMs).display
+      },
       message: selectedOffer.type === 'win' 
         ? 'Congratulations! You won an amazing offer!' 
         : 'Keep trying! Better luck next time!'

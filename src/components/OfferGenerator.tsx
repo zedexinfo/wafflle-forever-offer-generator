@@ -215,7 +215,10 @@ export default function OfferGenerator() {
 
       if (data.success) {
         setOffer(data.offer);
-        setCooldownInfo(null); // Clear any existing cooldown info for new offers
+        // Set cooldown info from successful generation
+        if (data.cooldownInfo) {
+          setCooldownInfo(data.cooldownInfo);
+        }
         setStep('result');
       } else {
         if (data.cooldownInfo && data.existingOffer) {
