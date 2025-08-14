@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@/lib/kv';
+import { 
+  getCurrentIST, 
+  getSameTimeTomorrowIST, 
+  getRemainingTimeUntil, 
+  formatRemainingTime,
+  isCooldownActive,
+  formatISTTime
+} from '@/lib/time-utils';
 
 const offers = [
   { 
@@ -76,18 +84,37 @@ export async function POST(request: NextRequest) {
     const lastOfferTime = await kv.get(cooldownKey);
     
     if (lastOfferTime) {
-      const timeDiff = Date.now() - Number(lastOfferTime);
-      const oneDayInMs = 24 * 60 * 60 * 1000;
+      const lastGenerationTime = new Date(Number(lastOfferTime));
       
-      if (timeDiff < oneDayInMs) {
-        const remainingTime = oneDayInMs - timeDiff;
-        const hoursLeft = Math.ceil(remainingTime / (60 * 60 * 1000));
+      if (isCooldownActive(lastGenerationTime)) {
+        const nextAvailableTime = getSameTimeTomorrowIST(lastGenerationTime);
+        const remainingMs = getRemainingTimeUntil(nextAvailableTime);
+        const timeInfo = formatRemainingTime(remainingMs);
         
+        // Get the existing offer to return it
+        const historyKey = `history:${contact}`;
+        const userHistory = await kv.get(historyKey) || [];
+        const lastOffer = Array.isArray(userHistory) && userHistory.length > 0 
+          ? userHistory[userHistory.length - 1] 
+          : null;
+
         return NextResponse.json(
           { 
             error: 'Cooldown active',
-            message: `Please wait ${hoursLeft} more hours before generating another offer`,
-            hoursLeft
+            message: `Please wait ${timeInfo.display} before generating another offer`,
+            cooldownInfo: {
+              remainingMs,
+              nextAvailableAt: nextAvailableTime.getTime(),
+              nextAvailableAtFormatted: formatISTTime(nextAvailableTime),
+              ...timeInfo
+            },
+            existingOffer: lastOffer ? {
+              ...lastOffer,
+              generatedAt: Number(lastOfferTime),
+              generatedAtFormatted: formatISTTime(lastGenerationTime),
+              contact: contact,
+              uniqueId: `${contact}_${lastOfferTime}_${lastOffer.id}`
+            } : null
           },
           { status: 429 }
         );
@@ -109,18 +136,29 @@ export async function POST(request: NextRequest) {
       selectedOffer = loseOffers[Math.floor(Math.random() * loseOffers.length)];
     }
 
-    // Set cooldown for 24 hours
-    await kv.setex(cooldownKey, 86400, Date.now().toString()); // 24 hours in seconds
+    // Set cooldown until same time tomorrow (IST-based)
+    const generatedAt = getCurrentIST();
+    const nextAvailableTime = getSameTimeTomorrowIST(generatedAt);
+    const cooldownDurationMs = getRemainingTimeUntil(nextAvailableTime);
+    const cooldownDurationSeconds = Math.ceil(cooldownDurationMs / 1000);
+    
+    await kv.setex(cooldownKey, cooldownDurationSeconds, generatedAt.getTime().toString());
 
     // Store the offer in user history
     const historyKey = `history:${contact}`;
     const userHistory = await kv.get(historyKey) || [];
     const newHistory = Array.isArray(userHistory) ? [...userHistory] : [];
-    newHistory.push({
+    const offerWithMetadata = {
       ...selectedOffer,
-      timestamp: Date.now(),
-      date: new Date().toISOString()
-    });
+      timestamp: generatedAt.getTime(),
+      date: generatedAt.toISOString(),
+      generatedAtIST: formatISTTime(generatedAt),
+      nextAvailableAt: nextAvailableTime.getTime(),
+      nextAvailableAtIST: formatISTTime(nextAvailableTime),
+      consumed: false // Track if admin has marked as consumed
+    };
+    
+    newHistory.push(offerWithMetadata);
     
     // Keep only last 10 offers
     if (newHistory.length > 10) {
@@ -129,14 +167,15 @@ export async function POST(request: NextRequest) {
     
     await kv.set(historyKey, newHistory);
 
-    const generatedAt = Date.now();
     const offerWithTimestamp = {
       ...selectedOffer,
-      generatedAt,
-      generatedAtFormatted: new Date(generatedAt).toLocaleString(),
+      generatedAt: generatedAt.getTime(),
+      generatedAtFormatted: formatISTTime(generatedAt),
       contact: contact,
       // Add unique identifier for this specific offer generation
-      uniqueId: `${contact}_${generatedAt}_${selectedOffer.id}`
+      uniqueId: `${contact}_${generatedAt.getTime()}_${selectedOffer.id}`,
+      nextAvailableAt: nextAvailableTime.getTime(),
+      nextAvailableAtFormatted: formatISTTime(nextAvailableTime)
     };
 
     return NextResponse.json({

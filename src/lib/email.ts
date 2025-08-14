@@ -13,7 +13,7 @@ const createTransporter = () => {
   });
 };
 
-// Email templates
+// Email templates with iPhone/Outlook compatibility fixes
 const getOTPEmailTemplate = (otp: string) => {
   return {
     subject: '🧇 Your Waffle Forever OTP Code',
@@ -23,54 +23,91 @@ const getOTPEmailTemplate = (otp: string) => {
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta name="color-scheme" content="light">
+          <meta name="supported-color-schemes" content="light">
           <title>Waffle Forever - OTP Verification</title>
+          <!--[if mso]>
+          <noscript>
+            <xml>
+              <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+              </o:OfficeDocumentSettings>
+            </xml>
+          </noscript>
+          <![endif]-->
         </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #fef7ed;">
-          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-            <!-- Header -->
-            <div style="text-align: center; padding: 40px 0; background: linear-gradient(135deg, #f59e0b, #ea580c); border-radius: 20px 20px 0 0;">
-              <div style="font-size: 3rem; margin-bottom: 10px;">👑</div>
-              <h1 style="color: white; margin: 0; font-size: 2.5rem; font-weight: bold;">🧇 Waffle Forever</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 1.1rem;">Your Royal Offer Awaits!</p>
-            </div>
-            
-            <!-- Main Content -->
-            <div style="background: white; padding: 40px; border-radius: 0 0 20px 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
-              <div style="text-align: center; margin-bottom: 30px;">
-                <div style="font-size: 4rem; margin-bottom: 20px;">🎁</div>
-                <h2 style="color: #ea580c; margin: 0 0 10px 0; font-size: 1.8rem;">Your Verification Code</h2>
-                <p style="color: #6b7280; margin: 0; font-size: 1.1rem;">Enter this code to claim your royal offer!</p>
-              </div>
-              
-              <!-- OTP Code -->
-              <div style="text-align: center; margin: 40px 0;">
-                <div style="display: inline-block; background: linear-gradient(135deg, #fbbf24, #f59e0b); padding: 20px 40px; border-radius: 15px; box-shadow: 0 5px 15px rgba(245, 158, 11, 0.3);">
-                  <div style="color: white; font-size: 2.5rem; font-weight: bold; letter-spacing: 8px; font-family: 'Courier New', monospace;">${otp}</div>
-                </div>
-              </div>
-              
-              <!-- Instructions -->
-              <div style="background: #fef3c7; padding: 20px; border-radius: 15px; border-left: 4px solid #f59e0b; margin: 30px 0;">
-                <h3 style="color: #92400e; margin: 0 0 10px 0; font-size: 1.1rem;">⚡ Quick Instructions:</h3>
-                <ul style="color: #92400e; margin: 0; padding-left: 20px;">
-                  <li>Enter this code on the Waffle Forever website</li>
-                  <li>Code expires in 10 minutes</li>
-                  <li>One-time use only</li>
-                </ul>
-              </div>
-              
-              <!-- Security Note -->
-              <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                <p style="color: #6b7280; font-size: 0.9rem; margin: 0;">🔒 This code is confidential. Never share it with anyone!</p>
-              </div>
-            </div>
-            
-            <!-- Footer -->
-            <div style="text-align: center; padding: 20px; color: #9ca3af;">
-              <p style="margin: 0; font-size: 0.9rem;">🧇 Waffle Forever - Delicious offers every day! 🥞</p>
-              <p style="margin: 5px 0 0 0; font-size: 0.8rem;">This email was sent automatically. Please do not reply.</p>
-            </div>
-          </div>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background-color: #fef7ed; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0; padding: 0;">
+            <tr>
+              <td align="center" style="padding: 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; width: 100%; margin: 0 auto;">
+                  <!-- Header -->
+                  <tr>
+                    <td align="center" style="background: #f59e0b; background: -webkit-linear-gradient(135deg, #f59e0b, #ea580c); background: linear-gradient(135deg, #f59e0b, #ea580c); border-radius: 20px 20px 0 0; padding: 40px 20px; text-align: center;">
+                      <div style="font-size: 48px; line-height: 1; margin-bottom: 10px;">👑</div>
+                      <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-size: min(32px, 8vw); font-weight: bold; line-height: 1.2;">🧇 Waffle Forever</h1>
+                      <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 18px; font-size: min(18px, 4.5vw); line-height: 1.4;">Your Royal Offer Awaits!</p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Main Content -->
+                  <tr>
+                    <td style="background: #ffffff; padding: 40px 20px; border-radius: 0 0 20px 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                        <tr>
+                          <td align="center" style="padding-bottom: 30px;">
+                            <div style="font-size: 64px; line-height: 1; margin-bottom: 20px;">🎁</div>
+                            <h2 style="color: #ea580c; margin: 0 0 10px 0; font-size: 24px; font-size: min(24px, 6vw); font-weight: bold; line-height: 1.3;">Your Verification Code</h2>
+                            <p style="color: #6b7280; margin: 0; font-size: 16px; font-size: min(16px, 4vw); line-height: 1.5;">Enter this code to claim your royal offer!</p>
+                          </td>
+                        </tr>
+                        
+                        <!-- OTP Code -->
+                        <tr>
+                          <td align="center" style="padding: 40px 0;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto;">
+                              <tr>
+                                <td align="center" style="background: #f59e0b; background: -webkit-linear-gradient(135deg, #fbbf24, #f59e0b); background: linear-gradient(135deg, #fbbf24, #f59e0b); padding: 20px 40px; border-radius: 15px; box-shadow: 0 5px 15px rgba(245, 158, 11, 0.3);">
+                                  <div style="color: #ffffff; font-size: 36px; font-size: min(36px, 9vw); font-weight: bold; letter-spacing: 6px; font-family: 'Courier New', Monaco, monospace; line-height: 1; text-align: center; min-width: 200px;">${otp}</div>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        
+                        <!-- Instructions -->
+                        <tr>
+                          <td style="background: #fef3c7; padding: 20px; border-radius: 15px; border-left: 4px solid #f59e0b; margin: 30px 0;">
+                            <h3 style="color: #92400e; margin: 0 0 10px 0; font-size: 16px; font-size: min(16px, 4vw); font-weight: bold; line-height: 1.4;">⚡ Quick Instructions:</h3>
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                              <tr><td style="color: #92400e; font-size: 14px; font-size: min(14px, 3.5vw); line-height: 1.6; padding: 2px 0;">• Enter this code on the Waffle Forever website</td></tr>
+                              <tr><td style="color: #92400e; font-size: 14px; font-size: min(14px, 3.5vw); line-height: 1.6; padding: 2px 0;">• Code expires in 10 minutes</td></tr>
+                              <tr><td style="color: #92400e; font-size: 14px; font-size: min(14px, 3.5vw); line-height: 1.6; padding: 2px 0;">• One-time use only</td></tr>
+                            </table>
+                          </td>
+                        </tr>
+                        
+                        <!-- Security Note -->
+                        <tr>
+                          <td align="center" style="padding-top: 30px; border-top: 1px solid #e5e7eb;">
+                            <p style="color: #6b7280; font-size: 14px; font-size: min(14px, 3.5vw); margin: 0; line-height: 1.5;">🔒 This code is confidential. Never share it with anyone!</p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td align="center" style="padding: 20px; color: #9ca3af;">
+                      <p style="margin: 0; font-size: 14px; font-size: min(14px, 3.5vw); line-height: 1.5;">🧇 Waffle Forever - Delicious offers every day! 🥞</p>
+                      <p style="margin: 5px 0 0 0; font-size: 12px; font-size: min(12px, 3vw); line-height: 1.4;">This email was sent automatically. Please do not reply.</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
         </body>
       </html>
     `,

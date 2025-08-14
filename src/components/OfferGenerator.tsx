@@ -16,6 +16,19 @@ interface Offer {
   generatedAtFormatted?: string;
   contact?: string;
   uniqueId?: string;
+  nextAvailableAt?: number;
+  nextAvailableAtFormatted?: string;
+}
+
+interface CooldownInfo {
+  remainingMs: number;
+  nextAvailableAt: number;
+  nextAvailableAtFormatted: string;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  totalSeconds: number;
+  display: string;
 }
 
 export default function OfferGenerator() {
@@ -27,7 +40,9 @@ export default function OfferGenerator() {
   const [error, setError] = useState('');
   const [offer, setOffer] = useState<Offer | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [cooldownHours, setCooldownHours] = useState(0);
+  const [cooldownInfo, setCooldownInfo] = useState<CooldownInfo | null>(null);
+  const [countdownDisplay, setCountdownDisplay] = useState('');
+  const [isCountdownActive, setIsCountdownActive] = useState(false);
 
   // Get OTP configuration from environment
   const otpConfig = getOTPConfig();
@@ -47,6 +62,48 @@ export default function OfferGenerator() {
       }
     }
   }, [otpConfig]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (!cooldownInfo) return;
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      const remaining = Math.max(0, cooldownInfo.nextAvailableAt - now);
+      
+      if (remaining <= 0) {
+        setIsCountdownActive(false);
+        setCountdownDisplay('');
+        setCooldownInfo(null);
+        return;
+      }
+
+      setIsCountdownActive(true);
+      const totalSeconds = Math.floor(remaining / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      let display = '';
+      if (hours > 0) {
+        display = `${hours}h ${minutes}m ${seconds}s`;
+      } else if (minutes > 0) {
+        display = `${minutes}m ${seconds}s`;
+      } else {
+        display = `${seconds}s`;
+      }
+
+      setCountdownDisplay(display);
+    };
+
+    // Update immediately
+    updateCountdown();
+    
+    // Then update every second
+    const interval = setInterval(updateCountdown, 1000);
+    
+    return () => clearInterval(interval);
+  }, [cooldownInfo]);
 
   const sendOTP = async () => {
     if (!contact.trim()) {
@@ -73,11 +130,13 @@ export default function OfferGenerator() {
           console.log('OTP:', data.otp);
         }
       } else {
-        if (data.cooldownActive && data.hoursLeft) {
-          setCooldownHours(data.hoursLeft);
+        if (data.cooldownActive && data.cooldownInfo && data.existingOffer) {
+          setCooldownInfo(data.cooldownInfo);
+          setOffer(data.existingOffer);
           setStep('result');
+        } else {
+          setError(data.error || 'Failed to send OTP');
         }
-        setError(data.error || 'Failed to send OTP');
       }
     } catch {
       setError('Network error. Please try again.');
@@ -107,8 +166,9 @@ export default function OfferGenerator() {
       if (data.success) {
         setStep('spin');
       } else {
-        if (data.hoursLeft) {
-          setCooldownHours(data.hoursLeft);
+        if (data.cooldownInfo && data.existingOffer) {
+          setCooldownInfo(data.cooldownInfo);
+          setOffer(data.existingOffer);
           setStep('result');
         }
         setError(data.error || 'Invalid OTP');
@@ -138,10 +198,12 @@ export default function OfferGenerator() {
 
       if (data.success) {
         setOffer(data.offer);
+        setCooldownInfo(null); // Clear any existing cooldown info for new offers
         setStep('result');
       } else {
-        if (data.hoursLeft) {
-          setCooldownHours(data.hoursLeft);
+        if (data.cooldownInfo && data.existingOffer) {
+          setCooldownInfo(data.cooldownInfo);
+          setOffer(data.existingOffer);
         }
         setError(data.error || 'Failed to generate offer');
         setStep('result');
@@ -160,7 +222,10 @@ export default function OfferGenerator() {
     setOtp('');
     setOffer(null);
     setError('');
-    setCooldownHours(0);
+    setCooldownInfo(null);
+    setCountdownDisplay('');
+    setIsCountdownActive(false);
+    setIsSpinning(false);
   };
 
   return (
@@ -775,30 +840,56 @@ export default function OfferGenerator() {
                           </p>
                         </div>
                       )}
+
+                      {/* Show countdown timer if user is in cooldown */}
+                      {isCountdownActive && (
+                        <div className="bg-blue-50 p-4 rounded-xl border-2 border-blue-200 mt-4">
+                          <Clock className="w-8 h-8 text-blue-500 mx-auto mb-2" />
+                          <p className="text-blue-700 font-semibold mb-2">
+                            Next spin available in:
+                          </p>
+                          <div className="text-2xl font-bold text-blue-800 font-mono">
+                            {countdownDisplay}
+                          </div>
+                          <p className="text-xs text-blue-600 mt-2">
+                            Next available: {cooldownInfo?.nextAvailableAtFormatted}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Show spin button when countdown expires but we're showing existing offer */}
+                      {!isCountdownActive && cooldownInfo && (
+                        <div className="bg-green-50 p-4 rounded-xl border-2 border-green-200 mt-4">
+                          <p className="text-green-700 font-semibold mb-4">
+                            Your cooldown has expired! Ready for a new spin?
+                          </p>
+                          <motion.button
+                            onClick={generateOffer}
+                            disabled={isSpinning}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-2xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition-all transform disabled:opacity-50"
+                          >
+                            {isSpinning ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                <span>Spinning...</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center gap-2">
+                                <Gift className="w-5 h-5" />
+                                <span>Spin for New Offer!</span>
+                                <Gift className="w-5 h-5" />
+                              </div>
+                            )}
+                          </motion.button>
+                        </div>
+                      )}
                     </motion.div>
                   </>
                 ) : (
                   <>
-                    {cooldownHours > 0 ? (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="space-y-4"
-                      >
-                        <Clock className="w-16 h-16 text-orange-500 mx-auto" />
-                        <h2 className="text-2xl font-bold text-orange-800">
-                          Come Back Later!
-                        </h2>
-                        <div className="bg-orange-50 p-6 rounded-xl border-2 border-orange-200">
-                          <p className="text-orange-700 font-semibold">
-                            You&apos;ve already claimed an offer today!
-                          </p>
-                          <p className="text-orange-600">
-                            Please wait {cooldownHours} more hours before generating another offer.
-                          </p>
-                        </div>
-                      </motion.div>
-                    ) : (
+                    {error && (
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
@@ -808,11 +899,9 @@ export default function OfferGenerator() {
                         <h2 className="text-2xl font-bold text-red-800">
                           Oops! Something went wrong
                         </h2>
-                        {error && (
-                          <div className="bg-red-50 p-4 rounded-xl border-2 border-red-200">
-                            <p className="text-red-700">{error}</p>
-                          </div>
-                        )}
+                        <div className="bg-red-50 p-4 rounded-xl border-2 border-red-200">
+                          <p className="text-red-700">{error}</p>
+                        </div>
                       </motion.div>
                     )}
                   </>
@@ -822,7 +911,7 @@ export default function OfferGenerator() {
                   onClick={resetApp}
                   className="w-full bg-gradient-to-r from-gray-400 to-gray-500 text-white py-4 rounded-2xl font-semibold text-lg hover:from-gray-500 hover:to-gray-600 transition-all transform hover:scale-105 active:scale-95"
                 >
-                  Try Again Tomorrow
+                  {isCountdownActive ? 'Start Over' : 'Try Again'}
                 </button>
               </motion.div>
             )}
